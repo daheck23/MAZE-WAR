@@ -1,5 +1,5 @@
-
 import random
+import numpy as np
 
 class GameState:
     def __init__(self, maze_data, team_count=2):
@@ -38,10 +38,30 @@ class GameState:
             print("Nicht genügend freie Positionen für alle Teams.")
             return
 
-        selected_positions = random.sample(open_positions, len(teams))
-        
-        for i, team_name in enumerate(teams):
-            teams[team_name]['position'] = selected_positions[i]
+        assigned_positions = []
+        for team_name in teams:
+            valid_position_found = False
+            for _ in range(1000): # Versuche, eine gültige Position zu finden
+                position = random.choice(open_positions)
+                if self.is_position_valid(position, assigned_positions):
+                    teams[team_name]['position'] = position
+                    assigned_positions.append(position)
+                    open_positions.remove(position) # Position aus der Liste der möglichen Positionen entfernen
+                    valid_position_found = True
+                    break
+            
+            if not valid_position_found:
+                print(f"Konnte keine gültige Position für {team_name} finden. Generierung fehlgeschlagen.")
+                # Hier könnte man eine Fehlerbehandlung hinzufügen
+                return
+
+    def is_position_valid(self, new_position, assigned_positions):
+        x1, y1 = new_position
+        for x2, y2 in assigned_positions:
+            distance_sq = (x1 - x2)**2 + (y1 - y2)**2
+            if distance_sq < 3**2: # Mindestabstand von 3
+                return False
+        return True
 
     def find_open_positions(self):
         # Find all path cells (value 0) in the maze
