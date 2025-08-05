@@ -1,8 +1,8 @@
-
 import numpy as np
 import random
 
 class MazeGenerator:
+    # ... (bestehender Code) ...
     def __init__(self, width, height):
         self.width = width
         self.height = height
