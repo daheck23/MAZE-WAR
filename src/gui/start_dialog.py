@@ -1,9 +1,11 @@
-# ... (Vorheriger Code) ...
+import sys
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from game_logic.maze_generator import MazeGenerator
+from gui.game_window import GameWindow
 from gui.map_settings_dialog import MapSettingsDialog
 
 class StartDialog(QWidget):
@@ -13,6 +15,7 @@ class StartDialog(QWidget):
         self.setGeometry(100, 100, 600, 800)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         self.map_settings_dialog = None
+        self.game_window = None
         self.init_ui()
 
     def init_ui(self):
@@ -39,6 +42,7 @@ class StartDialog(QWidget):
         self.start_button = QPushButton("Spiel starten")
         self.start_button.setFixedSize(200, 50)
         self.start_button.setFont(QFont("Arial", 14))
+        self.start_button.clicked.connect(self._on_start_game_clicked)
         layout.addWidget(self.start_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.generate_map_button = QPushButton("Map generieren")
@@ -63,6 +67,15 @@ class StartDialog(QWidget):
     def _on_generate_map_clicked(self):
         self.map_settings_dialog = MapSettingsDialog()
         self.map_settings_dialog.show()
+
+    def _on_start_game_clicked(self):
+        # Temporäre Labyrinth-Generierung für die Ansicht
+        maze_gen = MazeGenerator(width=20, height=15)
+        maze_data = maze_gen.generate()
+        
+        self.game_window = GameWindow(maze_data)
+        self.game_window.show()
+        self.hide()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(
