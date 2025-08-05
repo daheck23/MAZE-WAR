@@ -1,1 +1,80 @@
+import sys
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
+)
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
+class StartDialog(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("MAZE-AI War v1.0")
+        self.setGeometry(100, 100, 600, 800)
+        self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        # Titel
+        title_label = QLabel("MAZE-AI War")
+        title_font = QFont("Arial", 36, QFont.Weight.Bold)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Platzhalter für das Bild
+        image_label = QLabel()
+        image_label.setFixedSize(400, 400)
+        image_label.setStyleSheet("background-color: lightgray; border: 1px solid black;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_label.setText("Platzhalter für Bild")
+        layout.addWidget(image_label)
+
+        # Buttons
+        self.start_button = QPushButton("Spiel starten")
+        self.start_button.setFixedSize(200, 50)
+        self.start_button.setFont(QFont("Arial", 14))
+        layout.addWidget(self.start_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.generate_map_button = QPushButton("Map generieren")
+        self.generate_map_button.setFixedSize(200, 50)
+        self.generate_map_button.setFont(QFont("Arial", 14))
+        layout.addWidget(self.generate_map_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.settings_button = QPushButton("Einstellungen")
+        self.settings_button.setFixedSize(200, 50)
+        self.settings_button.setFont(QFont("Arial", 14))
+        layout.addWidget(self.settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.quit_button = QPushButton("Beenden")
+        self.quit_button.setFixedSize(200, 50)
+        self.quit_button.setFont(QFont("Arial", 14))
+        self.quit_button.clicked.connect(self.close_application)
+        layout.addWidget(self.quit_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.setLayout(layout)
+
+    def closeEvent(self, event):
+        reply = QMessageBox.question(
+            self,
+            "Beenden",
+            "Möchtest du das Programm wirklich schließen?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    def close_application(self):
+        self.close()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    dialog = StartDialog()
+    dialog.show()
+    sys.exit(app.exec())
