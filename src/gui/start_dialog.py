@@ -1,9 +1,10 @@
-import sys
+# ... (Vorheriger Code) ...
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from gui.map_settings_dialog import MapSettingsDialog
 
 class StartDialog(QWidget):
     def __init__(self):
@@ -11,6 +12,7 @@ class StartDialog(QWidget):
         self.setWindowTitle("MAZE-AI War v1.0")
         self.setGeometry(100, 100, 600, 800)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
+        self.map_settings_dialog = None
         self.init_ui()
 
     def init_ui(self):
@@ -42,6 +44,7 @@ class StartDialog(QWidget):
         self.generate_map_button = QPushButton("Map generieren")
         self.generate_map_button.setFixedSize(200, 50)
         self.generate_map_button.setFont(QFont("Arial", 14))
+        self.generate_map_button.clicked.connect(self._on_generate_map_clicked)
         layout.addWidget(self.generate_map_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.settings_button = QPushButton("Einstellungen")
@@ -56,6 +59,10 @@ class StartDialog(QWidget):
         layout.addWidget(self.quit_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.setLayout(layout)
+
+    def _on_generate_map_clicked(self):
+        self.map_settings_dialog = MapSettingsDialog()
+        self.map_settings_dialog.show()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(
