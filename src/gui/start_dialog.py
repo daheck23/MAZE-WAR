@@ -1,11 +1,15 @@
 import sys
+import traceback
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
+    QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox, QDialog
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from game_logic.maze_generator import MazeGenerator
+from gui.game_window import GameWindow
 from gui.map_settings_dialog import MapSettingsDialog
 from gui.game_setup_dialog import GameSetupDialog
+import numpy as np
 
 class StartDialog(QWidget):
     def __init__(self):
@@ -14,7 +18,7 @@ class StartDialog(QWidget):
         self.setGeometry(100, 100, 600, 800)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         self.map_settings_dialog = None
-        self.game_setup_dialog = None
+        self.game_window = None
         self.init_ui()
 
     def init_ui(self):
@@ -63,14 +67,36 @@ class StartDialog(QWidget):
 
         self.setLayout(layout)
 
-    def _on_start_game_clicked(self):
-        self.game_setup_dialog = GameSetupDialog(parent=self)
-        self.game_setup_dialog.show()
-        self.hide()
-
     def _on_generate_map_clicked(self):
         self.map_settings_dialog = MapSettingsDialog()
         self.map_settings_dialog.show()
+
+    def _on_start_game_clicked(self):
+        self.game_setup_dialog = GameSetupDialog(parent=self)
+        self.hide()
+
+        if self.game_setup_dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                # Holen der ausgewählten Daten
+                selected_teams = self.game_setup_dialog.selected_teams
+                map_name = self.game_setup_dialog.selected_map
+                
+                # Labyrinth generieren oder laden (temporär)
+                # Hier muss später die Logik zum Laden der Map aus der Datei hin
+                maze_gen = MazeGenerator(width=30, height=20)
+                maze_data = maze_gen.generate()
+                
+                # GameWindow als unabhängiges Fenster erstellen
+                self.game_window = GameWindow(maze_data, team_count=len(selected_teams), start_dialog_ref=self)
+                self.game_window.show()
+            except Exception as e:
+                # Zeigt eine Fehlermeldung, wenn etwas schiefgeht
+                error_message = f"Ein unerwarteter Fehler ist aufgetreten:\n\n{e}\n\nTraceback:\n{traceback.format_exc()}"
+                QMessageBox.critical(self, "Fehler beim Starten des Spiels", error_message)
+                self.show() # StartDialog wieder anzeigen
+        else:
+            # Wenn der Dialog abgebrochen wird, Startdialog wieder anzeigen
+            self.show()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(

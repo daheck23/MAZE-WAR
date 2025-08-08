@@ -16,6 +16,8 @@ class GameSetupDialog(QDialog):
         self.setFixedSize(500, 400)
         self.team_combos = []
         self.ki_combos = []
+        self.selected_teams = []
+        self.selected_map = None
         self.init_ui()
 
     def init_ui(self):
@@ -94,26 +96,12 @@ class GameSetupDialog(QDialog):
         if not self._validate_teams():
             return
         
-        # Holen der ausgewählten Teams und KIs
-        selected_teams = [combo.currentText() for combo in self.team_combos if combo.currentText() != "No"]
-        selected_ki_types = [
-            self.ki_combos[i].currentText() 
-            for i, team in enumerate(self.team_combos) 
-            if team.currentText() != "No"
-        ]
-        
-        # Temporäre Labyrinth-Generierung für die Ansicht (sollte später von der ausgewählten Map geladen werden)
-        maze_gen = MazeGenerator(width=30, height=20)
-        maze_data = maze_gen.generate()
-        
+        # Speichern der ausgewählten Daten
+        self.selected_teams = [combo.currentText() for combo in self.team_combos if combo.currentText() != "No"]
+        self.selected_map = self.map_combo.currentText()
+
+        # Signalisiert, dass der Dialog erfolgreich abgeschlossen wurde
         self.accept()
-        self.close()
-        
-        game_window = GameWindow(maze_data, team_count=len(selected_teams), parent=self.parent)
-        game_window.show()
 
     def _on_cancel(self):
         self.reject()
-        self.close()
-        if self.parent:
-            self.parent.show()
