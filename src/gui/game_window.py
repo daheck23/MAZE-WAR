@@ -1,166 +1,225 @@
 import sys
 import os
-import numpy as np
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QMessageBox, QFrame,
-    QGridLayout, QSizePolicy
-)
+import random
+from PyQt6.QtWidgets import (QMainWindow, QGraphicsView, QGraphicsScene, QVBoxLayout, 
+                             QWidget, QLabel, QGroupBox, QGridLayout, QPushButton,
+                             QMessageBox, QApplication, QGraphicsPixmapItem, QHBoxLayout,
+                             QSizePolicy)
+from PyQt6.QtGui import QFont, QBrush, QColor, QPixmap, QPen
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QColor, QPixmap
-from gui.maze_renderer import MazeRenderer
-from game_logic.game_state import GameState
 
-class GameWindow(QWidget):
-    def __init__(self, maze_data, team_count, start_dialog_ref=None):
-        super().__init__()
-        self.setWindowTitle("MAZE-AI War v1.0 - Game")
-        self.start_dialog_ref = start_dialog_ref
-        self.maze_data = maze_data
-        self.game_state = GameState(maze_data, team_count)
+class GameWindow(QMainWindow):
+    def __init__(self, map_name, teams, parent=None):
+        super().__init__(parent)
+        self.map_name = map_name
+        self.teams_info = teams
+        self.teams = [t['name'] for t in teams]
         
-        self.timer = QTimer(self)
-        self.timer_seconds = 300
+        self.width = 0 
+        self.height = 0
+        self.map_data = []
+        self.base_positions = {}
         
-        self.object_spawn_timer = QTimer(self)
-        self.bonus_spawn_timer = QTimer(self)
-        
-        self.init_ui()
+        self.setWindowTitle(f"MAZE-AI WAR - {self.map_name}")
         self.showFullScreen()
         
-        self.start_all_timers()
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        
+        self.scene = QGraphicsScene()
+        self.view = QGraphicsView(self.scene)
+        
+        self.init_ui()
+        QTimer.singleShot(100, self._delayed_draw_maze)
 
+    def _delayed_draw_maze(self):
+        print("DEBUG: _delayed_draw_maze() aufgerufen.")
+        self.scene.clear()
+        self.map_data = self._load_map_data()
+        
+        if not self.map_data:
+            print("DEBUG: Kartendaten sind leer, kann nicht zeichnen.")
+            return
+
+        self.height = len(self.map_data)
+        # NEU: Breite basierend auf der längsten Zeile in der Karte festlegen
+        self.width = max(len(row) for row in self.map_data) if self.map_data else 0
+
+        self._draw_maze(self.scene)
+        self._place_bases()
+        self._draw_bases()
+
+    def _place_bases(self):
+        placed_positions = []
+        
+        for team in self.teams:
+            found_position = False
+            while not found_position:
+                x = random.randint(0, self.width - 1)
+                y = random.randint(0, self.height - 1)
+                
+                # Korrektur: Prüfen, ob der Index innerhalb der Zeilenlänge liegt
+                if x < len(self.map_data[y]) and self.map_data[y][x] == '#':
+                    continue
+                
+                is_far_enough = True
+                for placed_x, placed_y in placed_positions:
+                    distance_x = abs(x - placed_x)
+                    distance_y = abs(y - placed_y)
+                    if distance_x <= 4 and distance_y <= 4:
+                        is_far_enough = False
+                        break
+                
+                if is_far_enough:
+                    self.base_positions[team] = (x, y)
+                    placed_positions.append((x, y))
+                    found_position = True
+
+    def _draw_bases(self):
+        if not self.base_positions:
+            return
+            
+        view_width = self.view.width()
+        view_height = self.view.height()
+        tile_size_w = view_width // self.width
+        tile_size_h = view_height // self.height
+        tile_size = min(tile_size_w, tile_size_h)
+
+        base_colors = {
+            "Team Red": QColor(255, 0, 0, 150),
+            "Team Blue": QColor(0, 0, 255, 150),
+            "Team Green": QColor(0, 255, 0, 150),
+            "Team Gold": QColor(255, 255, 0, 150),
+            "Team Pink": QColor(128, 0, 128, 150)
+        }
+        
+        for team, (x, y) in self.base_positions.items():
+            if team in base_colors:
+                brush = QBrush(base_colors[team])
+                pen = QPen(Qt.PenStyle.SolidLine)
+                pen.setWidth(2)
+                pen.setColor(QColor(0, 0, 0))
+                self.scene.addRect(x * tile_size, y * tile_size, tile_size, tile_size, pen, brush)
+
+    def _load_map_data(self):
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        maps_path = os.path.join(base_path, 'assets', 'maps')
+        file_path = os.path.join(maps_path, self.map_name)
+        
+        print(f"DEBUG: Versuche, Karte von Pfad zu laden: '{file_path}'")
+        map_data = []
+        if os.path.exists(file_path):
+            print("DEBUG: Kartendatei existiert.")
+            with open(file_path, 'r') as f:
+                for line in f:
+                    map_data.append(line.strip())
+        else:
+            print("DEBUG: Fehler - Kartendatei existiert NICHT.")
+        
+        return map_data
+
+    def _get_image_path(self, filename):
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, 'assets', 'images', filename)
+
+    def _draw_maze(self, scene):
+        print(f"DEBUG: _draw_maze() aufgerufen mit {len(self.map_data)} Zeilen.")
+        if not self.map_data:
+            print("DEBUG: Kartendaten sind leer.")
+            return
+        
+        view_width = self.view.width()
+        view_height = self.view.height()
+        
+        if self.width == 0 or self.height == 0 or view_width == 0 or view_height == 0:
+            print("DEBUG: Fenstergröße ist null. Zeichnen nicht möglich.")
+            return
+
+        tile_size_w = view_width // self.width
+        tile_size_h = view_height // self.height
+        tile_size = min(tile_size_w, tile_size_h)
+        
+        print(f"DEBUG: Fenstergröße: {view_width}x{view_height}, berechnete Kachelgröße: {tile_size}")
+
+        if tile_size <= 0:
+            print("DEBUG: Kachelgröße ist 0 oder kleiner. Zeichnen nicht möglich.")
+            return
+
+        wall_pixmap = QPixmap(self._get_image_path("wall.png")).scaled(tile_size, tile_size)
+        
+        for y, row in enumerate(self.map_data):
+            for x, tile in enumerate(row):
+                if tile == '#':
+                    item = QGraphicsPixmapItem(wall_pixmap)
+                    item.setPos(x * tile_size, y * tile_size)
+                    scene.addItem(item)
+                else:
+                    scene.addRect(x * tile_size, y * tile_size, tile_size, tile_size, QPen(Qt.PenStyle.NoPen), QBrush(QColor(255, 255, 255)))
+    
     def init_ui(self):
-        main_layout = QHBoxLayout(self)
-
-        game_area_layout = QVBoxLayout()
+        main_layout = QGridLayout(self.central_widget)
         
-        self.scoreboard_label = QLabel()
-        self.update_scoreboard()
-        self.scoreboard_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        self.scoreboard_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        game_area_layout.addWidget(self.scoreboard_label)
-
-        self.timer_label = QLabel("05:00")
-        self.timer_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        game_area_layout.addWidget(self.timer_label)
-
-        self.maze_renderer = MazeRenderer()
-        self.maze_renderer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.maze_renderer.set_maze_data(self.maze_data)
-        self.maze_renderer.set_team_bases(self._get_renderer_bases())
+        left_panel = QVBoxLayout()
+        info_font = QFont("Arial", 16, QFont.Weight.Bold)
+        info_label = QLabel("Timer: 5:00  |  Runde 1/7")
+        info_label.setFont(info_font)
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        left_panel.addWidget(info_label)
         
-        # Übergibt die Objekte und die Flagge an den Renderer
-        self.maze_renderer.set_objects(self.game_state.objects)
-        self.maze_renderer.set_flag(self.game_state.flag)
+        left_panel.addWidget(self.view)
         
-        game_area_layout.addWidget(self.maze_renderer, 1)
+        right_panel = QVBoxLayout()
+        teams_group_box = QGroupBox("Teams & Punkte")
+        teams_layout = QVBoxLayout()
         
-        sidebar_layout = QVBoxLayout()
-        sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        team_images = {
+            "Team Red": "soldier-red.png",
+            "Team Blue": "soldier-blue.png",
+            "Team Green": "soldier-green.png",
+            "Team Gold": "soldier-gold.png",
+            "Team Pink": "soldier-pink.png"
+        }
         
-        self.restart_button = QPushButton("Neustart")
-        self.restart_button.clicked.connect(self._on_restart_clicked)
-        sidebar_layout.addWidget(self.restart_button)
-
-        self.back_button = QPushButton("Zurück zum Startbildschirm")
-        self.back_button.clicked.connect(self._on_back_to_start_clicked)
-        sidebar_layout.addWidget(self.back_button)
-
-        sidebar_layout.addSpacing(50)
-        team_members_label = QLabel("Teammitglieder-Status:")
-        team_members_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        sidebar_layout.addWidget(team_members_label)
-        
-        for team_name in self.game_state.teams:
-            color_name = team_name.split()[1].lower()
-            image_path = os.path.join("assets", "images", f"soldier-{color_name}.png")
+        for team_info in self.teams_info:
+            team_name = team_info['name']
+            soldier_img = team_images.get(team_name, "default-soldier.png")
             
-            member_frame = QFrame()
-            member_frame.setFrameShape(QFrame.Shape.Box)
-            member_frame.setStyleSheet("background-color: lightgray;")
+            team_layout = QHBoxLayout()
+            pixmap = QPixmap(self._get_image_path(soldier_img)).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio)
+            img_label = QLabel()
+            img_label.setPixmap(pixmap)
+            team_layout.addWidget(img_label)
             
-            member_layout = QHBoxLayout(member_frame)
+            info_label = QLabel(f"{team_name}: 5 Punkte")
+            team_layout.addWidget(info_label)
+            teams_layout.addLayout(team_layout)
             
-            if os.path.exists(image_path):
-                pixmap = QPixmap(image_path)
-                image_label = QLabel()
-                image_label.setPixmap(pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation))
-                image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                member_layout.addWidget(image_label)
-            
-            member_info = QLabel(f"{team_name} | Health: 20 | Respawn: -")
-            member_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            member_layout.addWidget(member_info)
-            
-            sidebar_layout.addWidget(member_frame, alignment=Qt.AlignmentFlag.AlignCenter)
+        teams_group_box.setLayout(teams_layout)
+        right_panel.addWidget(teams_group_box)
+        right_panel.addStretch()
+        
+        button_font = QFont("Arial", 12)
+        next_round_button = QPushButton("Nächste Runde")
+        next_round_button.setFont(button_font)
+        right_panel.addWidget(next_round_button)
+        
+        restart_button = QPushButton("Neustart")
+        restart_button.setFont(button_font)
+        right_panel.addWidget(restart_button)
+        
+        back_to_start_button = QPushButton("Zurück zum Startbildschirm")
+        back_to_start_button.setFont(button_font)
+        back_to_start_button.clicked.connect(self.close_and_return_to_start)
+        right_panel.addWidget(back_to_start_button)
+        
+        main_layout.addLayout(left_panel, 0, 0, 1, 1)
+        main_layout.addLayout(right_panel, 0, 1, 1, 1)
 
-        main_layout.addLayout(game_area_layout, 7)
-        main_layout.addLayout(sidebar_layout, 3)
-
-    def _get_renderer_bases(self):
-        bases_for_renderer = {}
-        for team_name, data in self.game_state.teams.items():
-            r, g, b = data['color']
-            bases_for_renderer[team_name] = {
-                'color': QColor(r, g, b),
-                'position': data['base_position']
-            }
-        return bases_for_renderer
-
-    def update_scoreboard(self):
-        scores = [f"{team}: {data['score']}" for team, data in self.game_state.teams.items()]
-        self.scoreboard_label.setText("  |  ".join(scores))
-
-    def _on_restart_clicked(self):
-        QMessageBox.information(self, "Neustart", "Das Spiel wird neu gestartet.")
-
-    def _on_back_to_start_clicked(self):
+    def close_and_return_to_start(self):
+        print("DEBUG: close_and_return_to_start() aufgerufen.")
+        if isinstance(self.parent(), QWidget):
+            print("DEBUG: Parent existiert, zeige Parent an.")
+            self.parent().show()
+        else:
+            print("DEBUG: Kein Parent gefunden.")
         self.close()
-        if self.start_dialog_ref:
-            self.start_dialog_ref.show()
-
-    def closeEvent(self, event):
-        reply = QMessageBox.question(
-            self,
-            "Spiel beenden",
-            "Möchtest du das Spiel beenden und zum Startbildschirm zurückkehren?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            if self.start_dialog_ref:
-                self.start_dialog_ref.show()
-            event.accept()
-        else:
-            event.ignore()
-
-    def start_all_timers(self):
-        self.timer.timeout.connect(self.update_timer)
-        self.timer.start(1000)
-        
-        self.object_spawn_timer.timeout.connect(self._spawn_object)
-        self.object_spawn_timer.start(5000)
-        
-        self.bonus_spawn_timer.timeout.connect(self._spawn_bonus_object)
-        self.bonus_spawn_timer.start(30000)
-
-    def _spawn_object(self):
-        self.game_state.place_object()
-        self.maze_renderer.set_objects(self.game_state.objects)
-        
-    def _spawn_bonus_object(self):
-        self.game_state.place_object(is_bonus_spawn=True)
-        self.maze_renderer.set_objects(self.game_state.objects)
-        
-    def update_timer(self):
-        if self.timer_seconds > 0:
-            self.timer_seconds -= 1
-            minutes = self.timer_seconds // 60
-            seconds = self.timer_seconds % 60
-            self.timer_label.setText(f"{minutes:02}:{seconds:02}")
-        else:
-            self.timer.stop()
-            self.object_spawn_timer.stop()
-            self.bonus_spawn_timer.stop()
-            QMessageBox.information(self, "Rundenende", "Die Zeit ist abgelaufen!")

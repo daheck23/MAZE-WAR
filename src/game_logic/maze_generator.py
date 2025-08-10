@@ -1,41 +1,54 @@
-import numpy as np
 import random
 
 class MazeGenerator:
-    # ... (bestehender Code) ...
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        # 0: Wall, 1: Path
-        self.maze = np.ones((height * 2 + 1, width * 2 + 1), dtype=int)
-        self.visited = np.zeros((height, width), dtype=bool)
+        self.maze = [['#' for _ in range(self.width)] for _ in range(self.height)]
+        self.walls = []
+
+    def _add_walls(self, x, y):
+        # Fügt alle umliegenden Wände zur Liste hinzu
+        if y > 1 and self.maze[y-2][x] == '#':
+            self.walls.append((x, y-1))
+        if y < self.height - 2 and self.maze[y+2][x] == '#':
+            self.walls.append((x, y+1))
+        if x > 1 and self.maze[y][x-2] == '#':
+            self.walls.append((x-1, y))
+        if x < self.width - 2 and self.maze[y][x+2] == '#':
+            self.walls.append((x+1, y))
 
     def generate(self):
-        self.carve_paths_from(0, 0)
-        return self.maze
-
-    def carve_paths_from(self, x, y):
-        self.visited[y, x] = True
+        # Wählt einen zufälligen Startpunkt
+        start_x = random.randrange(1, self.width, 2)
+        start_y = random.randrange(1, self.height, 2)
         
-        # Directions: 0: up, 1: right, 2: down, 3: left
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-        random.shuffle(directions)
-
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
+        # Setzt den Startpunkt als Pfad und fügt seine Wände hinzu
+        self.maze[start_y][start_x] = ' '
+        self._add_walls(start_x, start_y)
+        
+        while self.walls:
+            # Wählt eine zufällige Wand aus
+            wall_x, wall_y = random.choice(self.walls)
+            self.walls.remove((wall_x, wall_y))
             
-            if 0 <= ny < self.height and 0 <= nx < self.width and not self.visited[ny, nx]:
-                # Carve path in the maze grid
-                self.maze[2 * y + 1 + dy, 2 * x + 1 + dx] = 0
-                self.maze[2 * ny + 1, 2 * nx + 1] = 0
-                
-                self.carve_paths_from(nx, ny)
+            # Findet die Zelle jenseits der Wand
+            if wall_y > 0 and self.maze[wall_y-1][wall_x] == ' ': # Wand oben
+                neighbor_x, neighbor_y = wall_x, wall_y+1
+            elif wall_y < self.height-1 and self.maze[wall_y+1][wall_x] == ' ': # Wand unten
+                neighbor_x, neighbor_y = wall_x, wall_y-1
+            elif wall_x > 0 and self.maze[wall_y][wall_x-1] == ' ': # Wand links
+                neighbor_x, neighbor_y = wall_x+1, wall_y
+            elif wall_x < self.width-1 and self.maze[wall_y][wall_x+1] == ' ': # Wand rechts
+                neighbor_x, neighbor_y = wall_x-1, wall_y
+            else:
+                continue
 
-if __name__ == "__main__":
-    # Example usage:
-    maze_gen = MazeGenerator(20, 20)
-    maze_array = maze_gen.generate()
-    
-    # Print the maze (0=path, 1=wall)
-    for row in maze_array:
-        print("".join(["#" if cell == 1 else " " for cell in row]))
+            # Wenn die Nachbarzelle nicht besucht wurde, bricht die Wand durch
+            if self.maze[neighbor_y][neighbor_x] == '#':
+                self.maze[wall_y][wall_x] = ' '
+                self.maze[neighbor_y][neighbor_x] = ' '
+                self._add_walls(neighbor_x, neighbor_y)
+        
+        # Gibt das generierte Labyrinth als Liste von Zeilen zurück
+        return ["".join(row) for row in self.maze]
