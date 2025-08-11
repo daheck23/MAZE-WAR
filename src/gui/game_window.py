@@ -57,6 +57,7 @@ class GameWindow(QMainWindow):
                 x = random.randint(0, self.width - 1)
                 y = random.randint(0, self.height - 1)
                 
+                # Korrektur: Zusätzliche Überprüfung, ob der Index x für die Zeile y gültig ist
                 if x >= len(self.map_data[y]) or self.map_data[y][x] == '#':
                     continue
                 
@@ -147,7 +148,6 @@ class GameWindow(QMainWindow):
         wall_pixmap = QPixmap(self._get_image_path("wall.png")).scaled(tile_size, tile_size)
         
         for y, row in enumerate(self.map_data):
-            # Korrektur: Überprüfen, ob x innerhalb der Zeilenlänge liegt
             for x, tile in enumerate(row):
                 if tile == '#':
                     item = QGraphicsPixmapItem(wall_pixmap)
@@ -210,16 +210,4 @@ class GameWindow(QMainWindow):
         back_to_start_button = QPushButton("Zurück zum Startbildschirm")
         back_to_start_button.setFont(button_font)
         back_to_start_button.clicked.connect(self.close_and_return_to_start)
-        right_panel.addWidget(back_to_start_button)
-        
-        main_layout.addLayout(left_panel, 0, 0, 1, 1)
-        main_layout.addLayout(right_panel, 0, 1, 1, 1)
-
-    def close_and_return_to_start(self):
-        print("DEBUG: close_and_return_to_start() aufgerufen.")
-        if isinstance(self.parent(), QWidget):
-            print("DEBUG: Parent existiert, zeige Parent an.")
-            self.parent().show()
-        else:
-            print("DEBUG: Kein Parent gefunden.")
-        self.close()
+        right_panel.addWidget
