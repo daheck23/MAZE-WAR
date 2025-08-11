@@ -1,14 +1,13 @@
 import sys
 import os
 from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout, QPushButton, QLabel, QMessageBox
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from .game_setup_dialog import GameSetupDialog
 
-# ANMERKUNG: Bitte stelle sicher, dass du die korrekten Import-Pfade und Klassennamen hast.
-# Die folgenden Zeilen sind Platzhalter.
-# from .map_generator_dialog import MapGeneratorDialog
-# from .settings_dialog import SettingsDialog
+# Wichtige Korrekturen: Die korrekten Dialoge importieren
+from .game_setup_dialog import GameSetupDialog
+from .map_settings_dialog import MapSettingsDialog
+from .settings_dialog import SettingsDialog
 
 class StartDialog(QDialog):
     def __init__(self, parent=None):
@@ -46,7 +45,7 @@ class StartDialog(QDialog):
         generate_map_button.setFont(QFont("Arial", 14))
         generate_map_button.setFixedSize(200, 40)
         generate_map_button.setStyleSheet("background-color: #555555; border-radius: 10px;")
-        generate_map_button.clicked.connect(self.open_map_generator)
+        generate_map_button.clicked.connect(self.open_map_settings)
         self.main_layout.addWidget(generate_map_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Button für Einstellungen
@@ -54,7 +53,7 @@ class StartDialog(QDialog):
         settings_button.setFont(QFont("Arial", 14))
         settings_button.setFixedSize(200, 40)
         settings_button.setStyleSheet("background-color: #555555; border-radius: 10px;")
-        settings_button.clicked.connect(self.open_settings_dialog)
+        settings_button.clicked.connect(self.open_settings)
         self.main_layout.addWidget(settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
         
         self.main_layout.addSpacing(40)
@@ -73,21 +72,17 @@ class StartDialog(QDialog):
         game_setup_dialog.show()
         self.hide()
 
-    def open_map_generator(self):
-        # Bitte ersetze 'MapGeneratorDialog' mit dem korrekten Klassennamen
-        # und entferne den Kommentar, nachdem du den Import hinzugefügt hast.
-        # map_generator_dialog = MapGeneratorDialog(self)
-        # map_generator_dialog.show()
-        # self.hide()
-        QMessageBox.information(self, "Information", "Die Funktion 'Karte generieren' ist noch nicht verknüpft.")
+    def open_map_settings(self):
+        print("DEBUG: StartDialog öffnet MapSettingsDialog.")
+        map_settings_dialog = MapSettingsDialog(self)
+        map_settings_dialog.show()
+        self.hide()
 
-    def open_settings_dialog(self):
-        # Bitte ersetze 'SettingsDialog' mit dem korrekten Klassennamen
-        # und entferne den Kommentar, nachdem du den Import hinzugefügt hast.
-        # settings_dialog = SettingsDialog(self)
-        # settings_dialog.show()
-        # self.hide()
-        QMessageBox.information(self, "Information", "Die Funktion 'Einstellungen' ist noch nicht verknüpft.")
+    def open_settings(self):
+        print("DEBUG: StartDialog öffnet SettingsDialog.")
+        settings_dialog = SettingsDialog(self)
+        settings_dialog.show()
+        self.hide()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
