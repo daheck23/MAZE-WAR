@@ -42,7 +42,6 @@ class GameWindow(QMainWindow):
             return
 
         self.height = len(self.map_data)
-        # NEU: Breite basierend auf der längsten Zeile in der Karte festlegen
         self.width = max(len(row) for row in self.map_data) if self.map_data else 0
 
         self._draw_maze(self.scene)
@@ -58,8 +57,7 @@ class GameWindow(QMainWindow):
                 x = random.randint(0, self.width - 1)
                 y = random.randint(0, self.height - 1)
                 
-                # Korrektur: Prüfen, ob der Index innerhalb der Zeilenlänge liegt
-                if x < len(self.map_data[y]) and self.map_data[y][x] == '#':
+                if x >= len(self.map_data[y]) or self.map_data[y][x] == '#':
                     continue
                 
                 is_far_enough = True
@@ -81,9 +79,10 @@ class GameWindow(QMainWindow):
             
         view_width = self.view.width()
         view_height = self.view.height()
-        tile_size_w = view_width // self.width
-        tile_size_h = view_height // self.height
-        tile_size = min(tile_size_w, tile_size_h)
+        tile_size_w = view_width // self.width if self.width > 0 else 0
+        tile_size_h = view_height // self.height if self.height > 0 else 0
+        
+        tile_size = min(tile_size_w, tile_size_h) if tile_size_w > 0 and tile_size_h > 0 else 0
 
         base_colors = {
             "Team Red": QColor(255, 0, 0, 150),
@@ -135,9 +134,9 @@ class GameWindow(QMainWindow):
             print("DEBUG: Fenstergröße ist null. Zeichnen nicht möglich.")
             return
 
-        tile_size_w = view_width // self.width
-        tile_size_h = view_height // self.height
-        tile_size = min(tile_size_w, tile_size_h)
+        tile_size_w = view_width // self.width if self.width > 0 else 0
+        tile_size_h = view_height // self.height if self.height > 0 else 0
+        tile_size = min(tile_size_w, tile_size_h) if tile_size_w > 0 and tile_size_h > 0 else 0
         
         print(f"DEBUG: Fenstergröße: {view_width}x{view_height}, berechnete Kachelgröße: {tile_size}")
 
@@ -148,6 +147,7 @@ class GameWindow(QMainWindow):
         wall_pixmap = QPixmap(self._get_image_path("wall.png")).scaled(tile_size, tile_size)
         
         for y, row in enumerate(self.map_data):
+            # Korrektur: Überprüfen, ob x innerhalb der Zeilenlänge liegt
             for x, tile in enumerate(row):
                 if tile == '#':
                     item = QGraphicsPixmapItem(wall_pixmap)
