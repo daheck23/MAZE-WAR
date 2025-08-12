@@ -1,6 +1,8 @@
 import tensorflow as tf
 import os
+import random
 from .base_agent import BaseAgent
+from src.game_logic.game_state import GameState # Importiere die GameState Klasse
 
 class KI_TensorFlow(BaseAgent):
     """
@@ -30,86 +32,65 @@ class KI_TensorFlow(BaseAgent):
         self.model.compile(optimizer='adam', loss='categorical_crossentropy')
         print(f"INFO: Neues TensorFlow-Modell für '{self.name}' erstellt.")
         
-    def choose_action(self, game_state):
+    def choose_action(self, game_state: GameState):
         """
         Wählt basierend auf dem Spielzustand eine Aktion mit dem TensorFlow-Modell aus.
         """
         # 1. Posteingang checken und verarbeiten
         self.check_inbox()
+
+        # 2. Prioritätenbasierte Entscheidungslogik
         
-        # 2. Spielzustand für die KI aufbereiten
+        # Priorität 1: Gesundheit niedrig? Suche Pille oder rufe um Hilfe
+        if game_state.get_player_health(self.name) < 50:
+            nearest_pill_pos = self._find_nearest_item(game_state, ['redpill', 'bluepill'])
+            if nearest_pill_pos:
+                # Hier könnte die KI die Aktion wählen, sich zur Pille zu bewegen
+                print(f"WARN: Gesundheit niedrig! Bewege mich zu Pille bei {nearest_pill_pos}.")
+                # Beispiel: Aktion zur Bewegung zur Pille ableiten
+                return self._get_move_action(game_state.get_player_position(self.name), nearest_pill_pos)
+            
+            # Wenn keine Pille in der Nähe, sende Hilferuf
+            message = f"Hilfe! Meine Gesundheit ist niedrig bei {game_state.get_player_position(self.name)}."
+            self.send_message(self.team_mate, message)
+
+        # Priorität 2: Feind in der Nähe? Angreifen oder fliehen
+        nearest_enemy_pos = self._find_nearest_enemy(game_state)
+        if nearest_enemy_pos and self._is_enemy_in_range(game_state, nearest_enemy_pos):
+            # Angreifen, wenn die eigene Gesundheit hoch genug ist
+            if game_state.get_player_health(self.name) > 75:
+                print("INFO: Feind in Reichweite. Ich greife an!")
+                # Hier würde die Aktion 'angreifen' gewählt werden
+                return 'attack'
+            else:
+                # Fliehen, wenn die Gesundheit niedrig ist
+                print("WARN: Feind in Reichweite, Gesundheit zu niedrig. Ich fliehe!")
+                return 'flee'
+
+        # Priorität 3: Normales Spielverhalten (keine Bedrohung)
+        
+        # Suche nach einem "fake_flag_item"
+        fake_flag_pos = self._find_nearest_item(game_state, ['fake_flag_item'])
+        if fake_flag_pos:
+            print("INFO: Fake-Flag-Item gefunden. Bewege mich dorthin.")
+            # Die KI bewegt sich zum Item und sendet dann eine falsche Nachricht
+            self._send_fake_flag_message(self.team_mate) # Diese Nachricht würde an den Gegner gehen
+            return self._get_move_action(game_state.get_player_position(self.name), fake_flag_pos)
+
+        # Wenn nichts Spezielles passiert, nutze das trainierte Modell für die nächste Aktion
         processed_state = self._preprocess_state(game_state)
         
-        # 3. Das Modell nutzen, um eine Aktion vorherzusagen
         if self.model:
-            # Die predict-Methode erwartet ein 2D-Array, daher reshape
             state_input = tf.constant(processed_state, dtype=tf.float32)[tf.newaxis, ...]
             action_probabilities = self.model.predict(state_input, verbose=0)[0]
-            
-            # Die Aktion mit der höchsten Wahrscheinlichkeit wählen
             action_index = tf.argmax(action_probabilities).numpy()
             action = self._map_action_index_to_action(action_index)
-            
-            # Beispielhafte Kommunikationslogik: Wenn angegriffen, sende eine Nachricht
-            if self._is_under_attack(game_state):
-                message = f"Hilfe! Ich werde bei {game_state.get_player_position(self.name)} angegriffen!"
-                self.send_message(self.team_mate, message)
-            
             return action
         else:
-            # Fallback, falls das Modell nicht geladen wurde
             return 'do_nothing'
 
-    def save_model(self):
-        """Speichert das TensorFlow-Modell im HDF5-Format."""
-        if self.model:
-            model_dir = self._get_model_directory()
-            model_path = os.path.join(model_dir, self.model_name)
-            self.model.save(model_path)
-            print(f"INFO: TensorFlow-Modell für '{self.name}' gespeichert.")
+    # --- Hilfsmethoden (Platzhalter) ---
 
-    def load_model(self):
-        """Lädt das TensorFlow-Modell."""
-        model_dir = self._get_model_directory()
-        model_path = os.path.join(model_dir, self.model_name)
-        try:
-            self.model = tf.keras.models.load_model(model_path)
-            print(f"INFO: TensorFlow-Modell für '{self.name}' geladen.")
-            return True
-        except (IOError, ValueError, TypeError) as e:
-            print(f"WARN: Konnte TensorFlow-Modell nicht laden: {e}")
-            self.model = None
-            return False
-
-    def _get_model_directory(self):
-        """Hilfsfunktion, um den Pfad zum models-Ordner zu erhalten."""
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'models'))
-
-    def _preprocess_state(self, game_state):
-        """
-        Bereitet den GameState für die KI auf.
-        Muss noch an die genaue Struktur angepasst werden.
-        """
-        # Beispiel: Eine flache Liste von Werten
-        state_vector = [
-            game_state.get_player_health(self.name),
-            *game_state.get_player_position(self.name)
-            # ... weitere relevante Daten
-        ]
-        return state_vector
-
-    def _is_under_attack(self, game_state):
-        """
-        Prüft, ob der Agent angegriffen wird (Platzhalter).
-        """
-        # Hier würde man Logik einfügen, um den Spielzustand zu überprüfen.
-        # Zum Beispiel: Steht ein Gegner in der Nähe?
-        return False
-
-    def _map_action_index_to_action(self, index):
-        """
-        Übersetzt den Index aus dem Modell in eine spielbare Aktion.
-        """
-        # Beispiel: 0 -> Oben, 1 -> Unten, etc.
-        actions = ['move_up', 'move_down', 'move_left', 'move_right', 'do_nothing']
-        return actions[index]
+    def _find_nearest_item(self, game_state: GameState, item_types):
+        """Sucht das nächste Item eines bestimmten Typs."""
+        # TODO: Implementiere die Logik, um die Koordin
