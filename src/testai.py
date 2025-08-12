@@ -1,88 +1,70 @@
 import os
 import sys
 
-# Füge das src-Verzeichnis zum Python-Pfad hinzu, damit Imports funktionieren
+# Füge das src-Verzeichnis zum Python-Pfad hinzu
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.agents.ki_tensorflow import KI_TensorFlow
 from src.agents.ki_torch import KI_Torch
 from src.agents.base_agent import BaseAgent
-from src.game_logic.game_state import GameState # Nutze die echte GameState Klasse
+from src.game_logic.game_state import GameState
 
 # --- Mock-Klassen zur Simulation ---
 
-# Wir verwenden hier die echte GameState Klasse, da sie bereits die Werte
-# für die Objekte enthält. Wir müssen nur die Player-Daten simulieren.
-def create_mock_game_state(health, position, team_mates=None, opponents=None):
+# Wir verwenden hier die echte GameState Klasse und simulieren nur die Daten
+def create_mock_game_state(map_data, player_health, player_pos, items, enemies):
     """Erstellt eine simulierte Instanz der GameState Klasse."""
-    map_data = ["###", "#.#", "###"] # Eine einfache Karte für den Test
     player_data = {
-        "TestAgent": {"health": health, "position": position},
+        "TestAgent": {"health": player_health, "position": player_pos},
         "TeamMate": {"health": 100, "position": (1, 2)}
     }
-    if opponents:
-        player_data.update(opponents)
+    enemy_data = {f"Enemy{i}": {"health": 100, "position": pos} for i, pos in enumerate(enemies)}
+    player_data.update(enemy_data)
     
-    return GameState(map_data, player_data)
+    # Simuliere Items auf der Karte, indem wir sie in die map_data einfügen
+    mock_map = [list(row) for row in map_data]
+    for pos, item_char in items.items():
+        mock_map[pos[1]][pos[0]] = item_char
+    
+    final_map = ["".join(row) for row in mock_map]
+    
+    return GameState(final_map, player_data)
 
 
 # --- Testfunktionen für die KI-Agenten ---
 
-def test_tensorflow_agent():
-    print("## Test für KI_TensorFlow gestartet ##")
-    ki_agent = KI_TensorFlow(name="TensorFlowAgent")
-    sim_state = create_mock_game_state(health=75, position=(5, 8))
+def test_ki_agent_logic(ki_class, agent_name):
+    print(f"## Test für {agent_name} gestartet ##")
+    ki_agent = ki_class(name=agent_name)
     
-    # Simuliere die choose_action Methode
+    # Szenario 1: Normales Spielverhalten (keine Bedrohung)
+    print("Szenario 1: Keine Bedrohung. Erwarte normale Bewegung oder 'do_nothing'.")
+    map_data = ["...", "...", "..." ]
+    sim_state = create_mock_game_state(map_data, player_health=100, player_pos=(0, 0), items={}, enemies=[])
     action = ki_agent.choose_action(sim_state)
+    print(f"-> Agent wählt Aktion: '{action}'")
     
-    print(f"-> Agent '{ki_agent.name}' wählt die Aktion: '{action}'")
-    print("--------------------------------------\n")
-
-
-def test_pytorch_agent():
-    print("## Test für KI_Torch gestartet ##")
-    ki_agent = KI_Torch(name="PyTorchAgent")
-    sim_state = create_mock_game_state(health=75, position=(5, 8))
-    
-    # Simuliere die choose_action Methode
+    # Szenario 2: Gesundheit niedrig, suche Pille
+    print("\nSzenario 2: Gesundheit niedrig. Erwarte, dass Agent nach Pille sucht.")
+    map_data = ["p..", "...", "..." ] # 'p' für Pille
+    sim_state = create_mock_game_state(map_data, player_health=40, player_pos=(2, 2), items={(0,0): 'p'}, enemies=[])
     action = ki_agent.choose_action(sim_state)
+    print(f"-> Agent wählt Aktion: '{action}'")
     
-    print(f"-> Agent '{ki_agent.name}' wählt die Aktion: '{action}'")
-    print("--------------------------------------\n")
-
-
-def test_fake_flag_logic():
-    print("## Test für Fake-Flag-Logik gestartet ##")
+    # Szenario 3: Fake Flag Item gefunden
+    print("\nSzenario 3: Fake Flag Item gefunden. Erwarte, dass Agent die Nachricht sendet.")
+    map_data = ["...", "F..", "..." ] # 'F' für fake_flag_item
+    sim_state = create_mock_game_state(map_data, player_health=100, player_pos=(0, 0), items={(1,0): 'F'}, enemies=[])
     
-    # Simuliere zwei Teammitglieder (Agenten)
-    team_member_a = KI_TensorFlow(name="TeamMemberA")
-    team_member_b = KI_TensorFlow(name="TeamMemberB")
+    # Simuliere gegnerischen Agenten, damit die Nachricht irgendwo ankommt
+    opponent = BaseAgent(name="Opponent")
+    ki_agent.team_mate = opponent
     
-    # Weist ihnen gegenseitig ihren Teammate zu
-    team_member_a.set_team_mate(team_member_b)
-    team_member_b.set_team_mate(team_member_a)
-    
-    # Simuliere eine Situation, in der Agent A die Flagge gefunden hat (oder eine falsche Flagge)
-    # Hier müsste normalerweise eine Aktion des Spiels die Nachricht auslösen.
-    # Wir rufen die Methode direkt auf, um den Effekt zu testen.
-    fake_flag_coords = (10, 20)
-    
-    print(f"-> {team_member_a.name} findet die Flagge bei {fake_flag_coords} und sendet eine Nachricht.")
-    
-    # In der echten Logik würde eine Funktion im Spiel die Nachricht erzeugen.
-    # Wir senden hier eine beispielhafte Nachricht, wie sie von CrewAI generiert werden könnte.
-    message_content = f"Ich habe die Flagge bei den Koordinaten {fake_flag_coords} gefunden. Wir müssen uns dorthin bewegen."
-    team_member_a.send_message(team_member_a.team_mate, message_content)
-    
-    # Jetzt verarbeitet Agent B seinen Posteingang
-    print(f"-> {team_member_b.name} checkt den Posteingang und verarbeitet die Nachricht.")
-    team_member_b.check_inbox()
-    
+    action = ki_agent.choose_action(sim_state)
+    print(f"-> Agent wählt Aktion: '{action}'")
     print("--------------------------------------\n")
 
 
 if __name__ == '__main__':
-    test_tensorflow_agent()
-    test_pytorch_agent()
-    test_fake_flag_logic()
+    test_ki_agent_logic(KI_TensorFlow, "TensorFlowAgent")
+    test_ki_agent_logic(KI_Torch, "PyTorchAgent")
