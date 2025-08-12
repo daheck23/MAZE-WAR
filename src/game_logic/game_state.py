@@ -19,7 +19,8 @@ class GameState:
             'grenade': {'health': 0, 'attack': 15, 'range': 4, 'image': 'grenade.png'},
             'nuke': {'health': 0, 'attack': 9999, 'range': 9999, 'image': 'nuke.png'},
             'flag': {'health': 0, 'attack': 0, 'win_condition': True, 'image': 'flag.png'},
-            'knife': {'health': 0, 'attack': 2, 'range': 2, 'image': 'knife.png'}
+            'knife': {'health': 0, 'attack': 2, 'range': 2, 'image': 'knife.png'},
+            'fake_flag_item': {'health': 0, 'attack': 0, 'image': 'fake_flag.png', 'special_effect': 'send_fake_coords'}
         }
         
     def _get_items_on_map(self):
@@ -29,6 +30,10 @@ class GameState:
         items = {}
         for y, row in enumerate(self.map_data):
             for x, cell in enumerate(row):
+                # Wir müssen hier die Symbole der Items, die du in der Karte hast,
+                # mit den Namen in den Properties abgleichen.
+                # Zum Beispiel: Wenn 'F' für die Flagge steht, muss die Logik das erkennen.
+                # Ich verwende hier Platzhalter, du kannst sie anpassen.
                 if cell not in ['#', '.']:
                     items[(x, y)] = cell
         return items
