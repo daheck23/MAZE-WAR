@@ -1,1 +1,6 @@
-  
+crewai
+langchain-community
+tensorflow
+torch
+numpy
+pyqt6
