@@ -1,41 +1,58 @@
-import random
+import time
+from src.game_logic.base_manager import BaseManager
+from src.game_logic.player_manager import PlayerManager
+from src.game_logic.item_manager import ItemManager
 
-def place_objects_on_map(map_data, objects_to_place):
+def setup_game(maze_map, team_config):
     """
-    Platziert Objekte zufällig auf der Karte.
-
-    Args:
-        map_data (list of list): Die 2D-Liste, die die Karte darstellt.
-        objects_to_place (list): Eine Liste von Objektnamen oder -typen.
+    Initialisiert alle Spielkomponenten und startet das Spiel.
+    Diese Funktion wird aufgerufen, wenn der Benutzer auf 'Spiel starten' klickt.
     """
-    map_height = len(map_data)
-    map_width = len(map_data[0]) if map_height > 0 else 0
+    # Hier werden die Positionen der Basen aus der Karte oder einer Konfiguration geladen
+    blue_base_pos = (5, 5) 
+    red_base_pos = (20, 20)
     
-    empty_positions = []
-    for y in range(map_height):
-        for x in range(map_width):
-            if map_data[y][x] == ' ': # ' ' steht für eine leere Position
-                empty_positions.append((x, y))
-
-    random.shuffle(empty_positions)
+    # 1. Instanziierung der Manager-Objekte
+    blue_base_manager = BaseManager('blue', blue_base_pos, team_config['blue'], maze_map)
+    red_base_manager = BaseManager('red', red_base_pos, team_config['red'], maze_map)
+    base_managers = {'blue': blue_base_manager, 'red': red_base_manager}
     
-    for i, obj in enumerate(objects_to_place):
-        if i < len(empty_positions):
-            x, y = empty_positions[i]
-            map_data[y][x] = obj
-            print(f"Objekt '{obj}' wurde bei Position ({x}, {y}) platziert.")
-        else:
-            print(f"Warnung: Nicht genug Platz für alle Objekte. '{obj}' konnte nicht platziert werden.")
+    item_manager = ItemManager(maze_map)
+    player_manager = PlayerManager(maze_map, team_config, base_managers)
 
-# Beispiel für die Verwendung
-# Die Karte könnte so aussehen:
-# maze_map = [
-#     ['#', '#', '#', '#', '#'],
-#     ['#', ' ', ' ', ' ', '#'],
-#     ['#', ' ', '#', ' ', '#'],
-#     ['#', ' ', ' ', ' ', '#'],
-#     ['#', '#', '#', '#', '#']
-# ]
+    # 2. Spielstart-Logik
+    item_manager.place_initial_items()
+    player_manager.initial_spawn()
 
-# objects = ['flag', 'weapon', 'pill']
-# place_objects_on_map(maze_map, objects)
+    print("Spiel wird gestartet...")
+    run_game_loop(player_manager, item_manager, base_managers)
+
+def run_game_loop(player_manager, item_manager, base_managers):
+    """
+    Der Haupt-Game-Loop, der das Spielgeschehen steuert.
+    """
+    game_over = False
+    
+    while not game_over:
+        # Hier findet der eigentliche Spiel-Loop statt, z.B.
+        # - Bewegungen der Spieler-Agenten
+        # - Kämpfe und Schadensberechnung
+        # - Einsammeln von Items
+        
+        # 1. Manager-Objekte aktualisieren
+        player_manager.update_respawns()
+        item_manager.update_item_respawn()
+        
+        # 2. Basen nach Gegnern suchen lassen
+        all_player_positions = player_manager.get_all_player_positions()
+        base_managers['blue'].check_for_enemies(all_player_positions)
+        base_managers['red'].check_for_enemies(all_player_positions)
+
+        # 3. Siegbedingungen prüfen
+        # Beispiel: Wenn eine Basis zerstört ist, hat das andere Team gewonnen
+        if not base_managers['blue'].is_active or not base_managers['red'].is_active:
+            game_over = True
+            
+        time.sleep(0.1) # Kurze Pause, um die CPU nicht zu überlasten
+        
+    print("Spiel beendet.")
