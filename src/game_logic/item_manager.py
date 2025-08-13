@@ -1,4 +1,5 @@
 import random
+import time
 
 class ItemManager:
     """
@@ -31,7 +32,7 @@ class ItemManager:
         random_items = [self._get_random_item(items_list) for _ in range(initial_item_count)]
         
         self._place_items(random_items)
-        self.last_respawn_time = 0 # Starte den Auffüll-Timer
+        self.last_respawn_time = time.time() # Startet den Auffüll-Timer
 
     def _get_random_item(self, items_list):
         """Wählt ein zufälliges Item aus, wobei die Nuke sehr selten ist."""
@@ -43,7 +44,7 @@ class ItemManager:
         return random.choices(items_list, weights, k=1)[0]
     
     def _place_specific_item(self, item_type):
-        """Platziert ein einzelnes, spezifisches Item."""
+        """Platziert ein einzelnes, spezifisches Item auf einer gültigen Position."""
         empty_positions = self._get_empty_positions()
         if empty_positions:
             random_pos = random.choice(empty_positions)
@@ -53,25 +54,44 @@ class ItemManager:
             print(f"Objekt '{item_type}' wurde bei ({x}, {y}) platziert.")
             return True
         return False
+    
+    def _place_items(self, item_list):
+        """Platziert eine Liste von Items auf der Karte."""
+        empty_positions = self._get_empty_positions()
+        random.shuffle(empty_positions)
+        
+        for item_type in item_list:
+            if empty_positions:
+                x, y = empty_positions.pop(0)
+                self.map_data[y][x] = item_type
+                self.items_on_map[item_type] = (x, y)
+            else:
+                print(f"Warnung: Nicht genug Platz für alle Objekte. '{item_type}' konnte nicht platziert werden.")
 
-    def update_item_respawn(self, current_game_time):
+    def update_item_respawn(self):
         """
-        Überprüft, ob neue Items platziert werden sollen.
+        Überprüft, ob neue Items platziert werden sollen, um das Maximum aufzufüllen.
         """
         if len(self.items_on_map) < self.max_item_count and \
-           (current_game_time - self.last_respawn_time) > self.respawn_delay:
+           (time.time() - self.last_respawn_time) > self.respawn_delay:
             
             # Platziere ein einzelnes neues Item
             new_item = self._get_random_item(['red pill', 'blue pill', 'nuke', 'knife', 'gun', 'grenade', 'pink duck', 'fake_flag'])
             if self._place_specific_item(new_item):
-                self.last_respawn_time = current_game_time
+                self.last_respawn_time = time.time()
                 print(f"Neues Item '{new_item}' wurde platziert.")
 
     def _get_empty_positions(self):
-        """Gibt eine Liste aller leeren Kachelkoordinaten zurück."""
+        """
+        Findet alle leeren Positionen auf der Karte, die keine Mauern oder Basen sind.
+        """
+        map_height = len(self.map_data)
+        map_width = len(self.map_data[0]) if map_height > 0 else 0
+        
         empty_positions = []
-        for y in range(self.map_height):
-            for x in range(self.map_width):
-                if self.map_data[y][x] == ' ':
+        for y in range(map_height):
+            for x in range(map_width):
+                # Prüft, ob die Kachel weder eine Mauer ('#') noch eine Basis ('B') oder Startposition ('S') ist
+                if self.map_data[y][x] not in ['#', 'B', 'S']:
                     empty_positions.append((x, y))
         return empty_positions
