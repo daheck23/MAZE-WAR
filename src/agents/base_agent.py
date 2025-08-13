@@ -1,84 +1,80 @@
-import os
-import json
-from crewai import Agent
-from langchain_community.llms import Ollama
-from langchain_core.tools import StructuredTool
-import random
-from typing import Dict, Any
+import time
 
-class BaseAgent:
+class BaseManager:
     """
-    Basisklasse für alle KI-Agenten, die die Kernfunktionen wie
-    Modellverwaltung und Kommunikation bereitstellt.
+    Verwaltet die Logik für eine einzelne Basis, einschließlich Gesundheit,
+    Verteidigung und Kommunikation mit den eigenen Agenten.
     """
-    def __init__(self, name, model_name=None, team_mate=None, map_data=None):
-        self.name = name
-        self.model = None
-        self.model_name = model_name
-        self.team_mate = team_mate
-        self.inbox = []
+    def __init__(self, team_name, start_position, team_agents, map_data):
+        self.team_name = team_name
+        self.position = start_position
+        self.health = 150
+        self.is_active = True
+        self.team_agents = team_agents # Liste der KI-Agenten dieses Teams
         self.map_data = map_data
-        self.llm = Ollama(model="llama2")
-        self.crewai_agent = self._create_crewai_agent()
+        self.vision_range = 4 # Sichtweite in Steps
+        self.last_warning_time = 0 # Zeitstempel für letzte Warnung
+        self.warning_cooldown = 10 # Sekunden
 
-    def _send_message_action(self, recipient_name: str, message: str) -> str:
-        """Interner Helfer, der die eigentliche Nachrichtenaktion durchführt."""
-        if self.team_mate and self.team_mate.name == recipient_name:
-            self.send_message(self.team_mate, message)
-            return f"Nachricht an {recipient_name} gesendet."
-        else:
-            return f"Fehler: Teammitglied {recipient_name} nicht gefunden."
-
-    def _create_crewai_agent(self):
+    def take_damage(self, damage_amount, damage_type='normal'):
         """
-        Erstellt einen CrewAI-Agenten für die Kommunikation.
+        Verringert die Gesundheit der Basis.
+        Berücksichtigt eine Schadensbegrenzung für Nukes.
         """
-        # Explizite Definition des Tools, um Versionsprobleme zu vermeiden
-        send_message_tool_instance = StructuredTool.from_function(
-            func=self._send_message_action,
-            name="send_message_tool",
-            description="Benutzt, um eine Nachricht an ein bestimmtes Teammitglied zu senden. Die Nachricht sollte relevante Informationen wie Koordinaten enthalten."
-        )
+        if not self.is_active:
+            return 0 # Basis ist bereits zerstört
 
-        return Agent(
-            role=f'{self.name} im Team',
-            goal='Mit dem Teammate kommunizieren, um die Strategie zu koordinieren und das Spiel zu gewinnen.',
-            backstory=f'Du bist ein Soldat namens {self.name}. Deine Hauptaufgabe ist es, mit deinem Teammate zu kommunizieren, um Waffen, Pillen und die Flagge zu finden. Du musst auch Hilfe rufen, wenn du angegriffen wirst.',
-            verbose=True,
-            llm=self.llm,
-            tools=[send_message_tool_instance]
-        )
+        if damage_type == 'nuke' and damage_amount > 100:
+            damage_amount = 100 # Max. 100 Schaden durch eine Nuke
 
-    def set_team_mate(self, team_mate_agent):
-        self.team_mate = team_mate_agent
+        self.health -= damage_amount
+        print(f"Basis von Team {self.team_name} erleidet {damage_amount} Schaden. Neue Health: {self.health}")
 
-    def choose_action(self, game_state):
-        raise NotImplementedError("Die Methode 'choose_action' muss in einer erbenden Klasse implementiert werden.")
-
-    def save_model(self):
-        # Implementiere die Logik zum Speichern des Modells hier
-        pass
+        if self.health <= 0:
+            self.is_active = False
+            print(f"Basis von Team {self.team_name} wurde zerstört!")
+            return 100 # Punkte für das Zerstören der Basis
         
-    def load_model(self):
-        # Implementiere die Logik zum Laden des Modells hier
-        pass
+        return 0
 
-    def send_message(self, recipient, message):
-        if recipient:
-            recipient.inbox.append(message)
-            print(f"INFO: '{self.name}' sendet Nachricht an '{recipient.name}': {message}")
+    def check_for_enemies(self, all_player_positions):
+        """
+        Sucht innerhalb der Sichtweite nach feindlichen Spielern.
+        """
+        if not self.is_active:
+            return False
 
-    def check_inbox(self):
-        messages_to_process = self.inbox.copy()
-        self.inbox.clear()
+        current_time = time.time()
+        if (current_time - self.last_warning_time) < self.warning_cooldown:
+            return False # Cooldown aktiv, keine neue Warnung senden
         
-        for message in messages_to_process:
-            self._process_message(message)
-
-    def _process_message(self, message):
-        print(f"INFO: '{self.name}' verarbeitet Nachricht: {message}")
-
-    def _send_fake_flag_message(self, opposing_team_mate):
-        if self.map_data:
-            map_height = len(self.map_data)
-            map_width = max(len(row
+        base_x, base_y = self.position
+        
+        for player_name, pos in all_player_positions.items():
+            player_x, player_y = pos
+            distance = ((player_x - base_x)**2 + (player_y - base_y)**2)**0.5
+            
+            # Prüft die Entfernung und ob der Spieler nicht zum eigenen Team gehört
+            if distance <= self.vision_range and self._get_player_team(player_name) != self.team_name:
+                print(f"Basis von Team {self.team_name} hat einen Feind gesichtet!")
+                self._warn_team_members(player_name)
+                self.last_warning_time = current_time
+                return True
+        return False
+    
+    def _warn_team_members(self, enemy_name):
+        """
+        Sendet eine Warnung an alle Agenten des eigenen Teams.
+        """
+        for agent in self.team_agents:
+            message = f"Dringend! Unsere Basis wird von {enemy_name} angegriffen! Kehrt sofort zur Verteidigung zurück!"
+            agent.send_message(agent.team_mate, message)
+            
+    def _get_player_team(self, player_name):
+        # Hilfsfunktion, um das Team eines Spielers anhand des Namens zu finden
+        for agent in self.team_agents:
+            if agent.name == player_name:
+                return self.team_name
+        # Annahme: der gegnerische Agent befindet sich im `all_player_positions` Dict
+        # Diese Logik müsste erweitert werden, um das Team des Gegners zu finden.
+        return 'opponent'
