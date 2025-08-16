@@ -1,8 +1,17 @@
 import sys
+import os
 from PyQt6.QtWidgets import QApplication
-from src.gui.start_dialog import StartDialog
+# Korrigierter Import-Pfad
+from .gui.start_dialog import StartDialog
 
 def main():
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        os.chdir(os.path.join(base_dir, os.pardir))
+    except FileNotFoundError:
+        print("FEHLER: Konnte das Basisverzeichnis nicht finden. Überprüfe die Dateistruktur.")
+        return
+
     app = QApplication(sys.argv)
     
     start_dialog = StartDialog()

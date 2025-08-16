@@ -5,13 +5,20 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
 # Wichtige Korrekturen: Die korrekten Dialoge importieren
-from .game_setup_dialog import GameSetupDialog
-from .map_settings_dialog import MapSettingsDialog
-from .settings_dialog import SettingsDialog
+try:
+    from .game_setup_dialog import GameSetupDialog
+    from .map_settings_dialog import MapSettingsDialog
+    from .settings_dialog import SettingsDialog
+    print("DEBUG: Alle Importe in start_dialog.py erfolgreich.")
+except ImportError as e:
+    print(f"SCHWERER FEHLER: Import-Fehler in start_dialog.py")
+    print(f"Fehlermeldung: {e}")
+    sys.exit(1)
 
 class StartDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.game_setup_dialog = None
         self.setWindowTitle("MAZE-AI WAR")
         self.setFixedSize(400, 300)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
@@ -23,7 +30,6 @@ class StartDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
-        # Titel-Label
         title_font = QFont("Arial", 24, QFont.Weight.Bold)
         title_label = QLabel("MAZE-AI WAR")
         title_label.setFont(title_font)
@@ -32,7 +38,6 @@ class StartDialog(QDialog):
         
         self.main_layout.addSpacing(40)
 
-        # Spiel starten Button
         start_button = QPushButton("Spiel starten")
         start_button.setFont(QFont("Arial", 14))
         start_button.setFixedSize(200, 40)
@@ -40,7 +45,6 @@ class StartDialog(QDialog):
         start_button.clicked.connect(self.open_game_setup)
         self.main_layout.addWidget(start_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Button zum Generieren einer Karte
         generate_map_button = QPushButton("Karte generieren")
         generate_map_button.setFont(QFont("Arial", 14))
         generate_map_button.setFixedSize(200, 40)
@@ -48,7 +52,6 @@ class StartDialog(QDialog):
         generate_map_button.clicked.connect(self.open_map_settings)
         self.main_layout.addWidget(generate_map_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Button für Einstellungen
         settings_button = QPushButton("Einstellungen")
         settings_button.setFont(QFont("Arial", 14))
         settings_button.setFixedSize(200, 40)
@@ -58,7 +61,6 @@ class StartDialog(QDialog):
         
         self.main_layout.addSpacing(40)
 
-        # Beenden-Button
         quit_button = QPushButton("Beenden")
         quit_button.setFont(QFont("Arial", 14))
         quit_button.setFixedSize(200, 40)
@@ -67,25 +69,16 @@ class StartDialog(QDialog):
         self.main_layout.addWidget(quit_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def open_game_setup(self):
-        print("DEBUG: StartDialog öffnet GameSetupDialog.")
-        game_setup_dialog = GameSetupDialog(self)
-        game_setup_dialog.show()
+        self.game_setup_dialog = GameSetupDialog(self)
+        self.game_setup_dialog.show()
         self.hide()
 
     def open_map_settings(self):
-        print("DEBUG: StartDialog öffnet MapSettingsDialog.")
         map_settings_dialog = MapSettingsDialog(self)
         map_settings_dialog.show()
         self.hide()
 
     def open_settings(self):
-        print("DEBUG: StartDialog öffnet SettingsDialog.")
         settings_dialog = SettingsDialog(self)
         settings_dialog.show()
         self.hide()
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    start_dialog = StartDialog()
-    start_dialog.show()
-    sys.exit(app.exec())
