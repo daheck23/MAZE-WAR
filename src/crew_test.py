@@ -1,89 +1,83 @@
 #
-# Datei: crew_workflow.py
+# Datei: crew_complex_workflow.py
 #
-# Dieses Skript demonstriert einen CrewAI-Workflow, bei dem ein PyTorch-Agent,
-# ein LLM-Agent (simuliert über Gemini-API) und ein TensorFlow-Agent
-# sequenziell zusammenarbeiten und ihre Ergebnisse übergeben.
+# Dieses Skript demonstriert einen komplexen, nicht-sequenziellen CrewAI-Workflow,
+# indem es vier separate Agenten und Aufgaben erstellt, die den
+# gewünschten Kommunikationsfluss abbilden:
+# 1. PyTorch -> PyTorch
+# 2. PyTorch -> TensorFlow
+# 3. TensorFlow -> PyTorch
+# 4. TensorFlow -> TensorFlow
+#
+# Jeder Schritt verarbeitet die Ausgabe des vorherigen Schritts.
 #
 
 import torch
 import tensorflow as tf
 import time
-import json
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import tool
 from typing import Dict, Any
 
 # -----------------------------------------------------------------------------
-# WICHTIG:
-# Dieses Skript simuliert einen API-Aufruf an das Gemini-Modell.
-# In einer echten Umgebung benötigen Sie eine API-Verbindung, die CrewAI
-# nativ über die .env-Datei oder Umgebungsvariablen verwaltet.
-# Hier zeigen wir den logischen Fluss.
-# -----------------------------------------------------------------------------
-
-# Ein Tool, das die Kommunikation mit einem LLM simuliert.
-# Es nimmt Daten entgegen und gibt eine formatierte JSON-Antwort zurück.
-@tool
-def process_with_llm(input_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Simuliert die Verarbeitung von Daten durch ein LLM (Gemini API).
-    Erzeugt eine zusammenfassende Nachricht und berechnet die Summe.
-    """
-    print("\n--- LLM-Agent: Daten für die Analyse erhalten. ---")
-    
-    # Simuliere die Antwort eines echten API-Aufrufs.
-    numbers = input_data.get("numbers", [])
-    if not numbers:
-        print("❌ Fehler: Keine Zahlen für die LLM-Analyse erhalten.")
-        return {"summary": "Fehler: Keine Zahlen zur Analyse.", "sum": 0}
-
-    total_sum = sum(numbers)
-    
-    # Mock der JSON-Antwort, die wir von einem echten LLM erwarten würden
-    mock_llm_response = {
-        "summary": f"Der PyTorch-Agent hat eine Reihe von Zahlen berechnet. "
-                   f"Die Summe dieser Zahlen ist {total_sum}.",
-        "sum": total_sum
-    }
-    
-    print(f"✅ LLM-Analyse abgeschlossen. Summary: {mock_llm_response['summary']}")
-    return mock_llm_response
-
-# -----------------------------------------------------------------------------
 # Agenten definieren
+# Jeder Agent hat eine klare Rolle und einen klaren Zweck.
 # -----------------------------------------------------------------------------
 
-pytorch_agent = Agent(
-    role="PyTorch Data Processor",
-    goal="Führe komplexe mathematische Operationen aus und verarbeite numerische Daten.",
+# Agent für den ersten PyTorch-Schritt
+torch_agent_1 = Agent(
+    role="PyTorch Initial Processor",
+    goal="Führe eine erste Vektoraddition mit PyTorch durch.",
     backstory=(
-        "Ein erfahrener Spezialist in der Datenverarbeitung und numerischen Berechnung "
-        "mit PyTorch. Er ist bekannt für seine Präzision und Effizienz bei der "
-        "Transformation von Daten."
+        "Ein grundlegender Datenverarbeiter, der die ersten numerischen Operationen "
+        "mit PyTorch durchführt und die Daten für den nächsten Agenten vorbereitet."
     ),
     verbose=True,
     allow_delegation=False
 )
 
-llm_agent = Agent(
-    role="LLM Analyst",
-    goal="Verwende ein großes Sprachmodell, um numerische Daten zu analysieren und zu interpretieren.",
+# Agent für den zweiten PyTorch-Schritt (empfängt von Torch)
+torch_agent_2 = Agent(
+    role="PyTorch Secondary Processor",
+    goal="Erhalte Daten von einem anderen PyTorch-Agenten und transformiere sie weiter.",
     backstory=(
-        "Ein KI-Experte, der fortschrittliche Sprachmodelle wie Gemini API nutzt, um "
-        "menschlich lesbare Zusammenfassungen aus maschinell generierten Daten zu erstellen."
+        "Ein fortgeschrittener PyTorch-Spezialist, der die Ausgabe von Vektoroperationen "
+        "versteht und eine weitere mathematische Transformation anwendet."
     ),
-    tools=[process_with_llm],
     verbose=True,
     allow_delegation=False
 )
 
-tensorflow_agent = Agent(
+# Agent für den ersten TensorFlow-Schritt (empfängt von Torch)
+tensorflow_agent_1 = Agent(
+    role="TensorFlow Bridge Analyst",
+    goal="Nimm die Ausgabe eines PyTorch-Agenten und berechne die Summe mit TensorFlow.",
+    backstory=(
+        "Ein Analyst, der als Brücke zwischen PyTorch- und TensorFlow-Operationen fungiert. "
+        "Er konvertiert die Vektor-Ausgabe in eine Skalar-Summe und übergibt sie."
+    ),
+    verbose=True,
+    allow_delegation=False
+)
+
+# Agent für den dritten PyTorch-Schritt (empfängt von TensorFlow)
+torch_agent_3 = Agent(
+    role="PyTorch Reverse Processor",
+    goal="Verarbeite das Ergebnis eines TensorFlow-Agenten mit PyTorch.",
+    backstory=(
+        "Ein vielseitiger PyTorch-Ingenieur, der in der Lage ist, Skalarwerte von TensorFlow "
+        "zu nehmen und eine neue Vektoroperation durchzuführen."
+    ),
+    verbose=True,
+    allow_delegation=False
+)
+
+# Agent für den zweiten TensorFlow-Schritt (empfängt von TensorFlow)
+tensorflow_agent_2 = Agent(
     role="TensorFlow Finalizer",
-    goal="Nimm die Ausgabe des LLM-Agenten und führe abschließende Berechnungen durch.",
+    goal="Nimm die Ausgabe des PyTorch-Agenten und berechne das endgültige Ergebnis mit TensorFlow.",
     backstory=(
-        "Ein Analyst, der die Leistungsfähigkeit von TensorFlow für abschließende "
-        "statistische Auswertungen und die Visualisierung von Ergebnissen nutzt."
+        "Der finale TensorFlow-Experte, der die endgültige Berechnung im Workflow durchführt "
+        "und das Endergebnis liefert."
     ),
     verbose=True,
     allow_delegation=False
@@ -91,74 +85,131 @@ tensorflow_agent = Agent(
 
 # -----------------------------------------------------------------------------
 # Aufgaben definieren
+# Jede Aufgabe repräsentiert eine Kommunikationsstufe.
 # -----------------------------------------------------------------------------
 
-pytorch_task = Task(
+torch_to_torch_task = Task(
     description=(
-        "Führe eine Vektoraddition mit PyTorch durch. Beginne mit einem Startvektor [1, 2, 3] "
-        "und addiere einen zweiten Vektor [4, 5, 6]. Gib das Ergebnis als Python-Liste zurück."
+        "Führe eine PyTorch-Vektoraddition durch. Verwende einen Startvektor [10, 20, 30] "
+        "und addiere [1, 1, 1] hinzu. Die Ausgabe ist eine Python-Liste."
     ),
-    agent=pytorch_agent,
-    expected_output="Eine Python-Liste, die die Ergebnisse der PyTorch-Berechnung enthält."
+    agent=torch_agent_1,
+    expected_output="Eine Python-Liste, die das Ergebnis der Vektoraddition enthält."
 )
 
-llm_task = Task(
+torch_to_tensorflow_task = Task(
     description=(
-        "Analysiere die numerischen Ergebnisse der vorherigen PyTorch-Aufgabe. Verwende das "
-        "bereitgestellte Tool, um eine verständliche Zusammenfassung zu erstellen und die "
-        "Summe der Zahlen zu ermitteln."
+        "Nimm das Ergebnis der 'PyTorch Initial Processor'-Aufgabe. Führe eine elementweise "
+        "Multiplikation mit dem Vektor [2, 2, 2] durch und gib das neue Ergebnis als Liste aus."
     ),
-    agent=llm_agent,
-    context=[pytorch_task],
-    expected_output="Ein Dictionary mit einem String für die Zusammenfassung und einem numerischen Wert für die Summe."
+    agent=torch_agent_2,
+    context=[torch_to_torch_task],
+    expected_output="Eine Python-Liste, die das Ergebnis der zweiten PyTorch-Berechnung enthält."
 )
 
-tensorflow_task = Task(
+tensorflow_to_torch_task = Task(
     description=(
-        "Nimm die Summe aus der LLM-Analyse. Erstelle einen TensorFlow-Tensor aus dieser Summe "
-        "und multipliziere ihn mit 2.5, um ein endgültiges Ergebnis zu erhalten."
+        "Nimm die Ausgabe der 'PyTorch Secondary Processor'-Aufgabe. Konvertiere die Liste in "
+        "einen TensorFlow-Tensor und berechne die Summe aller Elemente. Gib die Summe als Python-Skalar zurück."
     ),
-    agent=tensorflow_agent,
-    context=[llm_task],
-    expected_output="Ein String, der das Endergebnis der TensorFlow-Berechnung darstellt."
+    agent=tensorflow_agent_1,
+    context=[torch_to_tensorflow_task],
+    expected_output="Ein einzelner numerischer Wert, der die Summe des Vektors darstellt."
+)
+
+tensorflow_to_tensorflow_task = Task(
+    description=(
+        "Nimm die skalare Summe aus der 'TensorFlow Bridge Analyst'-Aufgabe. Erstelle einen "
+        "PyTorch-Tensor, multipliziere ihn mit 10 und gib das Ergebnis als neue Liste aus."
+    ),
+    agent=torch_agent_3,
+    context=[tensorflow_to_torch_task],
+    expected_output="Eine Python-Liste, die das Ergebnis der PyTorch-Multiplikation enthält."
+)
+
+final_tensorflow_task = Task(
+    description=(
+        "Nimm die Ausgabe der 'PyTorch Reverse Processor'-Aufgabe. Konvertiere die Liste in einen "
+        "TensorFlow-Tensor und führe die finale Summe aller Elemente durch. Gib das Ergebnis als String aus."
+    ),
+    agent=tensorflow_agent_2,
+    context=[tensorflow_to_tensorflow_task],
+    expected_output="Ein String, der das Endergebnis der finalen TensorFlow-Berechnung enthält."
 )
 
 # -----------------------------------------------------------------------------
-# Crew zusammenstellen und starten
+# Helferfunktionen zur Simulation der Berechnungen
 # -----------------------------------------------------------------------------
 
-# Definiere die Funktionen, die von den Agenten ausgeführt werden
-def run_pytorch_calculation():
-    """Simuliert die PyTorch-Aktion und gibt das Ergebnis zurück."""
-    tensor_a = torch.tensor([1, 2, 3], dtype=torch.float32)
-    tensor_b = torch.tensor([4, 5, 6], dtype=torch.float32)
-    result_tensor = tensor_a + tensor_b
-    result_list = result_tensor.tolist()
-    print(f"\n--- PyTorch-Agent: Berechnung abgeschlossen. Ergebnis: {result_list} ---")
-    return {"numbers": result_list}
+def run_torch_1_calc():
+    """PyTorch -> PyTorch"""
+    tensor_a = torch.tensor([10, 20, 30], dtype=torch.float32)
+    tensor_b = torch.tensor([1, 1, 1], dtype=torch.float32)
+    result = (tensor_a + tensor_b).tolist()
+    print(f"\n--- PyTorch Agent 1: Vektoraddition abgeschlossen. Ergebnis: {result} ---")
+    return {"data": result}
 
-def run_tensorflow_calculation(llm_result):
-    """Simuliert die TensorFlow-Aktion mit dem Ergebnis des LLM-Agenten."""
-    llm_sum = llm_result.get("sum")
-    if llm_sum is None:
-        print("❌ Fehler: Keine Summe vom LLM-Agenten erhalten.")
-        return "Berechnung fehlgeschlagen."
+def run_torch_2_calc(context):
+    """PyTorch -> TensorFlow"""
+    input_data = context.get("data")
+    if not input_data:
+        print("❌ Fehler: Keine Daten von PyTorch 1 erhalten.")
+        return {"data": []}
+    
+    tensor_in = torch.tensor(input_data, dtype=torch.float32)
+    tensor_mult = torch.tensor([2, 2, 2], dtype=torch.float32)
+    result = (tensor_in * tensor_mult).tolist()
+    print(f"\n--- PyTorch Agent 2: Vektormultiplikation abgeschlossen. Ergebnis: {result} ---")
+    return {"data": result}
+
+def run_tensorflow_1_calc(context):
+    """TensorFlow -> PyTorch"""
+    input_data = context.get("data")
+    if not input_data:
+        print("❌ Fehler: Keine Daten von PyTorch 2 erhalten.")
+        return {"data": 0}
         
-    tf_tensor = tf.constant(llm_sum, dtype=tf.float32)
-    final_result = tf_tensor * 2.5
-    print(f"\n--- TensorFlow-Agent: Endgültige Berechnung abgeschlossen. Ergebnis: {final_result.numpy()} ---")
-    return f"Endgültiges Ergebnis: {final_result.numpy()}"
+    tf_tensor = tf.constant(input_data, dtype=tf.float32)
+    total_sum = tf.reduce_sum(tf_tensor).numpy()
+    print(f"\n--- TensorFlow Agent 1: Summe berechnet. Ergebnis: {total_sum} ---")
+    return {"data": total_sum}
+
+def run_torch_3_calc(context):
+    """TensorFlow -> TensorFlow"""
+    input_data = context.get("data")
+    if not isinstance(input_data, (int, float)):
+        print("❌ Fehler: Keine skalare Summe von TensorFlow 1 erhalten.")
+        return {"data": []}
+
+    torch_tensor = torch.tensor(input_data, dtype=torch.float32)
+    result = (torch_tensor * 10).tolist()
+    print(f"\n--- PyTorch Agent 3: Skalar-Multiplikation abgeschlossen. Ergebnis: {result} ---")
+    return {"data": result}
+
+def run_tensorflow_2_calc(context):
+    """Final TensorFlow"""
+    input_data = context.get("data")
+    if not input_data:
+        print("❌ Fehler: Keine Daten von PyTorch 3 erhalten.")
+        return "Berechnung fehlgeschlagen."
+
+    tf_tensor = tf.constant(input_data, dtype=tf.float32)
+    final_result = tf.reduce_sum(tf_tensor).numpy()
+    print(f"\n--- TensorFlow Agent 2: Finale Summe berechnet. Ergebnis: {final_result} ---")
+    return f"Endgültiges Resultat: {final_result}"
 
 # Überschreibe die `_execute` Methoden der Tasks, um die Funktionen aufzurufen
-pytorch_task._execute = run_pytorch_calculation
-llm_task._execute = lambda: llm_agent.tools[0].run(pytorch_task.output) # Übergibt die Ausgabe des ersten Tasks
-tensorflow_task._execute = lambda: run_tensorflow_calculation(llm_task.output) # Übergibt die Ausgabe des zweiten Tasks
+torch_to_torch_task._execute = run_torch_1_calc
+torch_to_tensorflow_task._execute = lambda: run_torch_2_calc(torch_to_torch_task.output)
+tensorflow_to_torch_task._execute = lambda: run_tensorflow_1_calc(torch_to_tensorflow_task.output)
+tensorflow_to_tensorflow_task._execute = lambda: run_torch_3_calc(tensorflow_to_torch_task.output)
+final_tensorflow_task._execute = lambda: run_tensorflow_2_calc(tensorflow_to_tensorflow_task.output)
 
 
 # Erstelle die Crew
 crew = Crew(
-    agents=[pytorch_agent, llm_agent, tensorflow_agent],
-    tasks=[pytorch_task, llm_task, tensorflow_task],
+    agents=[torch_agent_1, torch_agent_2, tensorflow_agent_1, torch_agent_3, tensorflow_agent_2],
+    tasks=[torch_to_torch_task, torch_to_tensorflow_task, tensorflow_to_torch_task, tensorflow_to_tensorflow_task, final_tensorflow_task],
     process=Process.sequential,
     verbose=2
 )
@@ -168,4 +219,3 @@ print("\n=== CrewAI Workflow gestartet ===")
 final_result = crew.kickoff()
 print("\n=== Workflow abgeschlossen ===")
 print(f"Endgültiges Resultat der Crew: {final_result}")
-
