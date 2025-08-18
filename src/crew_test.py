@@ -1,11 +1,13 @@
 #
 # Datei: complex_llm_crew_workflow.py
 #
-# Dieses Skript demonstriert den gewünschten komplexen Kommunikationsfluss:
-# 1. PyTorch -> PyTorch
-# 2. PyTorch -> TensorFlow
-# 3. TensorFlow -> LLM (llama-cpp)
-# 4. LLM -> TensorFlow
+# Dieses Skript demonstriert alle angefragten Kommunikationspfade in einem CrewAI-Workflow:
+# - PyTorch -> PyTorch
+# - PyTorch -> TensorFlow
+# - TensorFlow -> LLM (llama-cpp)
+# - LLM -> TensorFlow
+# - NEU: TensorFlow -> PyTorch
+# - NEU: PyTorch -> LLM
 #
 # Die Integration von llama-cpp ist hier zentral, da es als Brücke
 # zwischen den rein numerischen Berechnungen dient.
@@ -13,6 +15,7 @@
 import torch
 import tensorflow as tf
 import re
+import random
 from crewai import Agent, Task, Crew, Process
 from crewai_tools import tool
 from typing import Dict, Any
@@ -85,12 +88,12 @@ torch_agent_1 = Agent(
     allow_delegation=False
 )
 
-# Agent für den zweiten PyTorch-Schritt
+# Agent für den zweiten PyTorch-Schritt, der nun Daten von TensorFlow verarbeitet
 torch_agent_2 = Agent(
-    role="PyTorch Secondary Processor",
-    goal="Erhalte Daten von einem anderen PyTorch-Agenten und transformiere sie weiter.",
+    role="PyTorch Secondary Processor (from TensorFlow)",
+    goal="Erhalte Daten von einem TensorFlow-Agenten und transformiere sie weiter.",
     backstory=(
-        "Ein fortgeschrittener PyTorch-Spezialist, der die Ausgabe von Vektoroperationen "
+        "Ein fortgeschrittener PyTorch-Spezialist, der die Ausgabe von TensorFlow-Operationen "
         "versteht und eine weitere mathematische Transformation anwendet."
     ),
     verbose=True,
@@ -108,7 +111,7 @@ tensorflow_agent_1 = Agent(
     allow_delegation=False
 )
 
-# Agent, der das Llama-Modell verwendet
+# Agent, der das Llama-Modell verwendet und Daten von PyTorch erhält
 llm_agent = Agent(
     role="Local LLM Interpreter",
     goal="Verwende ein lokales Sprachmodell, um numerische Daten zu interpretieren und einen neuen Wert zu generieren.",
@@ -155,7 +158,7 @@ torch_to_tensorflow_task = Task(
         "Multiplikation mit dem Vektor [2, 2, 2] durch und berechne dann die Summe aller Elemente. "
         "Gib die Summe als Python-Skalar zurück."
     ),
-    agent=torch_agent_2,
+    agent=tensorflow_agent_1,
     context=[torch_to_torch_task],
     expected_output="Ein einzelner numerischer Wert."
 )
@@ -181,6 +184,28 @@ llm_to_tensorflow_task = Task(
     agent=tensorflow_agent_2,
     context=[tensorflow_to_llm_task],
     expected_output="Ein String, der das Endergebnis der finalen TensorFlow-Berechnung enthält."
+)
+
+# NEU: TensorFlow -> PyTorch
+tensorflow_to_torch_task = Task(
+    description=(
+        "Erzeuge eine Zufallszahl zwischen 1 und 10 mit TensorFlow. Multipliziere diese Zahl "
+        "mit einem Skalar von 10. Gib das Ergebnis als Python-Skalar zurück."
+    ),
+    agent=tensorflow_agent_1,
+    expected_output="Ein einzelner numerischer Wert."
+)
+
+# NEU: PyTorch -> LLM
+torch_to_llm_task = Task(
+    description=(
+        "Nimm die Ausgabe des PyTorch-Agenten und verarbeite sie mit dem lokalen LLM-Modell. "
+        "Erstelle eine kurze Textzusammenfassung, die den Wert und das Ergebnis seiner "
+        "Multiplikation mit 10 enthält."
+    ),
+    agent=llm_agent,
+    context=[torch_to_torch_task], # Dies ist nur für das Beispiel, normalerweise würden Sie hier eine neue Aufgabe erstellen
+    expected_output="Ein String, der die Textzusammenfassung und den neuen Wert enthält."
 )
 
 # -----------------------------------------------------------------------------
@@ -213,8 +238,6 @@ def run_tensorflow_2_calc(context):
     llm_result_text = context
     print(f"\n--- TensorFlow Agent 2: Text von LLM erhalten: '{llm_result_text}' ---")
     
-    # Extrahiere den neuen Wert aus dem Text.
-    # Hier verwenden wir einen regulären Ausdruck, um den Wert zu finden.
     match = re.search(r'The new value is (\d+\.?\d*)', llm_result_text)
     if not match:
         print("❌ Fehler: Konnte den neuen Wert nicht aus dem LLM-Text extrahieren.")
@@ -231,16 +254,37 @@ def run_tensorflow_2_calc(context):
     print(f"\n--- TensorFlow Agent 2: Endgültige Berechnung (Quadrat) abgeschlossen. Ergebnis: {final_result} ---")
     return f"Endgültiges Resultat: {final_result}"
 
+def run_tensorflow_to_torch_calc():
+    """NEU: Simuliert TensorFlow -> PyTorch"""
+    random_num = random.randint(1, 10)
+    tf_tensor = tf.constant(random_num, dtype=tf.float32)
+    result = tf_tensor * 10
+    print(f"\n--- TensorFlow Agent (TensorFlow -> PyTorch): Zufallszahl erzeugt und multipliziert. Ergebnis: {result.numpy()} ---")
+    return {"value": result.numpy()}
+
+def run_torch_to_llm_calc(context):
+    """NEU: Simuliert PyTorch -> LLM"""
+    input_data = context.get("data", [])
+    if not input_data:
+        print("❌ Fehler: Keine Daten von PyTorch erhalten.")
+        return {"value": 0}
+
+    torch_sum = torch.tensor(input_data).sum().item()
+    print(f"\n--- PyTorch Agent (PyTorch -> LLM): Summe berechnet. Wert: {torch_sum} ---")
+    return {"value": torch_sum}
+
 # Weisen Sie die Ausführungsfunktionen den Aufgaben zu
 torch_to_torch_task._execute = run_torch_1_calc
 torch_to_tensorflow_task._execute = lambda: run_torch_2_calc(torch_to_torch_task.output)
 tensorflow_to_llm_task._execute = lambda: process_with_llama.run(tensorflow_to_llm_task.context[0].output)
 llm_to_tensorflow_task._execute = lambda: run_tensorflow_2_calc(llm_to_tensorflow_task.context[0].output)
+tensorflow_to_torch_task._execute = run_tensorflow_to_torch_calc
+torch_to_llm_task._execute = lambda: process_with_llama.run(run_torch_to_llm_calc(torch_to_llm_task.context[0].output))
 
 # Erstelle die Crew
 crew = Crew(
     agents=[torch_agent_1, torch_agent_2, tensorflow_agent_1, llm_agent, tensorflow_agent_2],
-    tasks=[torch_to_torch_task, torch_to_tensorflow_task, tensorflow_to_llm_task, llm_to_tensorflow_task],
+    tasks=[torch_to_torch_task, torch_to_tensorflow_task, tensorflow_to_llm_task, llm_to_tensorflow_task, tensorflow_to_torch_task, torch_to_llm_task],
     process=Process.sequential,
     verbose=2
 )
